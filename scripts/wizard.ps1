@@ -3,7 +3,7 @@
   [string]$AppName = "",        # 应用名。提供后：文案自动带应用名；浏览选中后自动加 \AppName 子文件夹
   [string]$Title   = "安装程序",
   [string]$Icon    = "rar.ico",  # 左上角/任务栏图标，默认取脚本同目录的 rar.ico（WinRAR 图标，固定标准）
-  [string]$Banner  = "",        # 横幅图片路径（jpg/png 按内容识别）
+  [string]$Banner  = "",        # 横幅图片路径；不传或文件不存在时回退到 DQTX 标准横幅
   [string]$Tagline = "安全 · 绿色 · 纯净"
 )
 
@@ -17,6 +17,15 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# ---- 默认横幅：未传 -Banner 时回退到 DQTX 标准横幅（头像+公众号+官网，固定标准）----
+if (-not $Banner -or -not (Test-Path -LiteralPath $Banner)) {
+  $stdBanner = Join-Path $PSScriptRoot "banner-dqtx.png"                # 打包时随脚本拷到同目录
+  if (-not (Test-Path -LiteralPath $stdBanner)) {
+    $stdBanner = Join-Path (Split-Path $PSScriptRoot -Parent) "assets\banner-dqtx.png"  # skill 中央位置
+  }
+  if (Test-Path -LiteralPath $stdBanner) { $Banner = $stdBanner }
+}
+
 # ---- 主题色 ----
 $C_BLUE   = [System.Drawing.Color]::FromArgb(37, 99, 235)    # 主蓝 #2563EB
 $C_BLUE_L = [System.Drawing.Color]::FromArgb(191, 219, 254)  # 输入框描边 #BFDBFE
@@ -26,11 +35,17 @@ $C_GRAY_D = [System.Drawing.Color]::FromArgb(55, 65, 81)     # 标签 #374151
 $C_LINE   = [System.Drawing.Color]::FromArgb(209, 213, 219)  # 描边 #D1D5DB
 $C_HOVER  = [System.Drawing.Color]::FromArgb(229, 231, 235)  # 标题栏按钮悬停 #E5E7EB
 
-# ---- 无边框拖动 P/Invoke ----
+# ---- 无边框拖动 + 控制台隐藏 P/Invoke ----
 Add-Type -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool ReleaseCapture();
 [DllImport("user32.dll")] public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+[DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 '@ -Name U32 -Namespace Wiz | Out-Null
+
+# 弹向导期间隐藏宿主控制台（install.cmd 的黑窗），确认安装后再唤回显示复制进度
+$hwndConsole = [Wiz.U32]::GetConsoleWindow()
+if ($hwndConsole -ne [IntPtr]::Zero) { [void][Wiz.U32]::ShowWindow($hwndConsole, 0) }   # SW_HIDE
 
 # ---- 圆角路径 ----
 function New-RoundPath([float]$w, [float]$h, [float]$r) {
@@ -347,7 +362,12 @@ $form.Controls.Add($btnCancel)
 $form.CancelButton = $btnCancel
 $form.Add_Shown({ $txt.Select($txt.Text.Length, 0); $txt.Focus() })
 
-if ($form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+$dlgResult = $form.ShowDialog()
+
+# 对话框结束（无论安装还是取消）都把控制台唤回来，让后续复制进度可见
+if ($hwndConsole -ne [IntPtr]::Zero) { [void][Wiz.U32]::ShowWindow($hwndConsole, 4) }   # SW_SHOWNA
+
+if ($dlgResult -eq [System.Windows.Forms.DialogResult]::OK) {
   Write-Output $txt.Text.Trim()
   exit 0
 }
