@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="hTitle hDesc">
+  <title id="hTitle">dqtx-make-sfx — Windows 单文件自解压打包工具箱</title>
+  <desc id="hDesc">把一个文件夹拼接成双击即用的单文件安装包：7zSD stub 加 config.txt 加 payload.7z，三段拼接成 Setup.exe。</desc>
+
+  <rect width="1200" height="360" rx="24" fill="#0B1220"/>
+  <line x1="640" y1="36" x2="640" y2="324" stroke="#1B2740" stroke-width="1" stroke-dasharray="3 6"/>
+
+  <!-- 左：标题与价值 -->
+  <g transform="translate(56 48)">
+    <text y="14" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="3" fill="#60A5FA">WINDOWS · 7-ZIP SFX · ONE-FILE PACKAGER</text>
+    <text y="76" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="54" font-weight="700" fill="#F4F8FF">dqtx-make-sfx</text>
+    <text y="124" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="24" font-weight="600" fill="#E6EDF7">一个文件夹 → 双击即用的单文件安装包</text>
+    <text y="158" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="19" fill="#8B97AB">软件安装 · 配置覆盖 · 现代中文界面 · 目标机零依赖</text>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#A9B7D0">
+      <rect y="190" width="272" height="38" rx="19" fill="#111A2E" stroke="#223052"/>
+      <text x="136" y="215" text-anchor="middle">LZMA2 · 416MB → 117MB</text>
+      <rect x="288" y="190" width="202" height="38" rx="19" fill="#111A2E" stroke="#223052"/>
+      <text x="389" y="215" text-anchor="middle">PowerShell 5.1+</text>
+    </g>
+
+    <text y="300" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#55648A">stub + config + payload 三段拼接 · 纯 7-Zip · 无 NSIS / Inno Setup</text>
+  </g>
+
+  <!-- 右：三段拼接机制（项目母题） -->
+  <g transform="translate(700 48)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+    <g font-size="19" fill="#E6EDF7">
+      <rect width="190" height="52" rx="10" fill="#111A2E" stroke="#2A3A5F"/>
+      <text x="16" y="32">7zSD stub</text>
+      <text x="95" y="90" text-anchor="middle" font-size="20" fill="#60A5FA">+</text>
+      <rect y="100" width="190" height="52" rx="10" fill="#111A2E" stroke="#2A3A5F"/>
+      <text x="16" y="132">config.txt</text>
+      <text x="95" y="190" text-anchor="middle" font-size="20" fill="#60A5FA">+</text>
+      <rect y="200" width="190" height="52" rx="10" fill="#111A2E" stroke="#2A3A5F"/>
+      <text x="16" y="232">payload.7z</text>
+    </g>
+
+    <path d="M 210 138 H 262" stroke="#60A5FA" stroke-width="2"/>
+    <path d="M 254 132 L 266 138 L 254 144" fill="none" stroke="#60A5FA" stroke-width="2"/>
+    <text x="236" y="112" text-anchor="middle" font-size="16" fill="#8B97AB">concat</text>
+
+    <g>
+      <rect x="290" y="46" width="150" height="184" rx="12" fill="#16233F" stroke="#2563EB" stroke-width="1.5"/>
+      <circle cx="310" cy="66" r="3.5" fill="#2A3A5F"/>
+      <circle cx="322" cy="66" r="3.5" fill="#2A3A5F"/>
+      <circle cx="334" cy="66" r="3.5" fill="#2A3A5F"/>
+      <text x="365" y="122" text-anchor="middle" font-size="20" fill="#F4F8FF">Setup</text>
+      <text x="365" y="148" text-anchor="middle" font-size="20" fill="#F4F8FF">.exe</text>
+      <rect x="310" y="172" width="110" height="6" rx="3" fill="#223052"/>
+      <rect x="310" y="172" width="72" height="6" rx="3" fill="#2563EB"/>
+      <text x="365" y="208" text-anchor="middle" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="16" fill="#8B97AB">双击安装</text>
+    </g>
+  </g>
+</svg>

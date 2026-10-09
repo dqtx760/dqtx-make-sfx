@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-labelledby="wTitle wDesc">
+  <title id="wTitle">安装器完整流程</title>
+  <desc id="wDesc">双击 Setup.exe，解压进度，选择安装位置，创建快捷方式并启动主程序，控制台自动关闭。</desc>
+
+  <g transform="translate(60 45)" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <!-- 01 双击运行 -->
+    <g transform="translate(0 0)">
+      <rect width="252" height="190" rx="14" fill="#0B1220" stroke="#1B2740"/>
+      <text x="20" y="34" font-family="ui-monospace, Menlo, monospace" font-size="16" fill="#60A5FA">01</text>
+      <rect x="20" y="52" width="96" height="56" rx="7" fill="#16233F" stroke="#2A3A5F"/>
+      <circle cx="30" cy="62" r="2.5" fill="#2A3A5F"/><circle cx="39" cy="62" r="2.5" fill="#2A3A5F"/><circle cx="48" cy="62" r="2.5" fill="#2A3A5F"/>
+      <text x="34" y="94" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#8B97AB">Setup.exe</text>
+      <path d="M 140 66 L 176 84 L 152 90 Z" fill="#2563EB"/>
+      <text x="20" y="148" font-size="21" font-weight="600" fill="#F4F8FF">双击运行</text>
+      <text x="20" y="176" font-size="18" fill="#8B97AB">目标机零依赖</text>
+    </g>
+
+    <!-- 02 数据解压中 -->
+    <g transform="translate(276 0)">
+      <rect width="252" height="190" rx="14" fill="#0B1220" stroke="#1B2740"/>
+      <text x="20" y="34" font-family="ui-monospace, Menlo, monospace" font-size="16" fill="#60A5FA">02</text>
+      <rect x="20" y="78" width="212" height="10" rx="5" fill="#223052"/>
+      <rect x="20" y="78" width="146" height="10" rx="5" fill="#2563EB"/>
+      <text x="20" y="112" font-family="ui-monospace, Menlo, monospace" font-size="14" fill="#8B97AB">69%</text>
+      <text x="20" y="148" font-size="21" font-weight="600" fill="#F4F8FF">数据解压中</text>
+      <text x="20" y="176" font-size="18" fill="#8B97AB">LZMA2 高压缩解包</text>
+    </g>
+
+    <!-- 03 选择安装位置 -->
+    <g transform="translate(552 0)">
+      <rect width="252" height="190" rx="14" fill="#0B1220" stroke="#1B2740"/>
+      <text x="20" y="34" font-family="ui-monospace, Menlo, monospace" font-size="16" fill="#60A5FA">03</text>
+      <rect x="20" y="66" width="164" height="28" rx="6" fill="#16233F" stroke="#BFDBFE"/>
+      <text x="30" y="85" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#E6EDF7">D:\software\App</text>
+      <rect x="192" y="66" width="40" height="28" rx="6" fill="#F3F4F6"/>
+      <text x="212" y="85" text-anchor="middle" font-size="13" fill="#374151">...</text>
+      <text x="20" y="148" font-size="21" font-weight="600" fill="#F4F8FF">选择安装位置</text>
+      <text x="20" y="176" font-size="18" fill="#8B97AB">可浏览任意磁盘</text>
+    </g>
+
+    <!-- 04 快捷方式与启动 -->
+    <g transform="translate(828 0)">
+      <rect width="252" height="190" rx="14" fill="#0B1220" stroke="#1B2740"/>
+      <text x="20" y="34" font-family="ui-monospace, Menlo, monospace" font-size="16" fill="#60A5FA">04</text>
+      <rect x="20" y="62" width="38" height="38" rx="8" fill="#16233F" stroke="#2A3A5F"/>
+      <path d="M 31 88 L 47 72 M 47 72 h -9 M 47 72 v 9" stroke="#60A5FA" stroke-width="2.5" fill="none"/>
+      <path d="M 96 70 L 126 88 L 96 106 Z" fill="#2563EB"/>
+      <text x="20" y="148" font-size="21" font-weight="600" fill="#F4F8FF">快捷方式 · 启动</text>
+      <text x="20" y="176" font-size="18" fill="#8B97AB">控制台自动关闭</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,3 @@
+﻿# Copy this file to sfx-defaults.txt and edit the paths.
+# Icon=<full\path\to\your.ico>
+# Stub=<full\path\to\7zSD-zh.sfx or 7zSD.sfx>
