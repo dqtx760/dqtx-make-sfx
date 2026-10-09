@@ -9,9 +9,12 @@
   [string]$WatchSrc = ""        # 可选：被复制的源文件夹（如 %~dp0app）。提供后进度条按"已复制字节/源总字节"真实推进（从左走到右）
 )
 
-# 现代扁平风格安装向导（无边框自绘标题栏 + 横幅 + 路径选择），替代 7zSD 丑陋的 BeginPrompt。
-# 用法：install.cmd 里 for /f 捕获 stdout（powershell 必须带 -STA）：
-#   for /f "usebackq delims=" %%i in (`powershell -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0wizard.ps1" -Default "%DEFAULT%" -AppName "MyApp" -Icon "%~dp0app.ico" -Banner "%~dp0banner.png"`) do set "DST=%%i"
+# 现代扁平风格安装向导（无边框自绘标题栏 + 横幅 + 路径选择 + 安装进度视图），替代 7zSD 丑陋的 BeginPrompt。
+# 用法（powershell 必须带 -STA）：
+#   标准进度视图（向导调起安装脚本 + 真实进度条，推荐）：
+#     powershell -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0wizard.ps1" -Default "D:\software\MyApp" -AppName "MyApp" -RunAfter "%~dp0install_run.cmd" -WatchSrc "%~dp0MyApp-win32-x64"
+#   旧模式（仅选路径，cmd 自己复制）：for /f 捕获 stdout：
+#     for /f "usebackq delims=" %%i in (`powershell -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0wizard.ps1" -Default "%DEFAULT%" -AppName "MyApp"`) do set "DST=%%i"
 # 「取消 / ✕」→ exit 1 → DST 未定义。stdout 只打印最终路径一行。
 # 注意：本文件必须存成 UTF-8 **带 BOM**；cmd 调用方保持纯 ASCII，中文默认值烘在本文件里。
 
