@@ -180,6 +180,18 @@ if not defined DST (
 | 8 | File is corrupt | 文件已损坏 |
 | 3003 | Cannot create folder '{0}' | 无法创建文件夹 '{0}' |
 
+⚠️ 只翻 RT_STRING **不够**——进度框的 `Cancel` 按钮烧在 RT_DIALOG 对话框模板里，
+`Are you sure you want to cancel?` / `Unknown error` 是 .rdata 硬编码字面量，都不走字符串表。
+`localize_stub.py` 已内置「等长 UTF-16 字节补丁」处理这三处（新串字符数必须与原文一致，空格居中补齐）：
+
+| 位置 | 原文 | 已改成 |
+|---|---|---|
+| RT_DIALOG 按钮 | Cancel | `  取消  ` |
+| .rdata 确认框 | Are you sure you want to cancel? | 确定要取消当前解压吗？（空格居中） |
+| .rdata 错误提示 | Unknown error | 未知错误（空格居中） |
+
+进度框标题是动态的「N% 数据解压中」，无需处理。
+
 ```powershell
 python scripts\localize_stub.py <stub.sfx>            # 就地改
 python scripts\localize_stub.py <stub.sfx> -o <out.sfx>

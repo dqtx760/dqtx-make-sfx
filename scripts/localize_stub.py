@@ -15,6 +15,12 @@ localize_stub.py — 把 7zSD.sfx 安装器的英文字符串资源替换成中�
   7     Extraction Failed            -> 解压失败
   8     File is corrupt              -> 文件已损坏
   3003  Cannot create folder '{0}'   -> 无法创建文件夹 '{0}'
+
+另外还有两类不 在 RT_STRING 里的界面文字，用「等长 UTF-16 字节补丁」处理（新串必须和
+原文字符数完全一致，不足用空格补齐居中，避免挪动 PE 里后续结构）：
+  RT_DIALOG 对话框模板：进度框的 Cancel 按钮        -> "  取消  "
+  .rdata 硬编码字面量：Are you sure you want to cancel? -> 确定要取消当前解压吗？
+                       Unknown error               -> 未知错误
 """
 import struct, sys, pathlib
 
@@ -24,6 +30,25 @@ REPL = {
     8: "文件已损坏",
     3003: "无法创建文件夹 '{0}'",
 }
+
+# 等长字节补丁： (原文 UTF-16LE 字节, 新文 UTF-16LE 字节)，长度必须一致，各只替换 1 处
+BYTE_PATCHES = [
+    # 进度框 Cancel 按钮（RT_DIALOG 模板，带结尾 \0）
+    (
+        "Cancel\0".encode("utf-16-le"),
+        "  取消  \0".encode("utf-16-le"),
+    ),
+    # 解压中点取消的确认框（.rdata 字面量）
+    (
+        "Are you sure you want to cancel?\0".encode("utf-16-le"),
+        "          确定要取消当前解压吗？           \0".encode("utf-16-le"),
+    ),
+    # 错误提示
+    (
+        "Unknown error\0".encode("utf-16-le"),
+        "    未知错误     \0".encode("utf-16-le"),
+    ),
+]
 
 RT_STRING = 6
 
@@ -111,6 +136,15 @@ def main():
         changed.append((rid, size, len(blob)))
 
     target = out_path or stub
+    for old, new in BYTE_PATCHES:
+        if len(old) != len(new):
+            raise SystemExit(f"等长补丁长度不一致: {len(old)} != {len(new)}")
+        found = bytes(data).count(old)
+        if found != 1:
+            raise SystemExit(f"补丁目标出现 {found} 次（应为 1），中止以免误伤: {old[:24]!r}")
+        i = bytes(data).index(old)
+        data[i:i + len(new)] = new
+        print(f"[ok] 字节补丁 @ {i:#07x}: {old.decode('utf-16-le')!r} -> {new.decode('utf-16-le').rstrip(chr(0))!r}")
     target.write_bytes(bytes(data))
     for rid, old, new in changed:
         print(f"[ok] RT_STRING res {rid}: {old} -> {new} bytes")
