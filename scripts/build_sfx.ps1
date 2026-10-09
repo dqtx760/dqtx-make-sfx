@@ -18,12 +18,14 @@
 param(
   [string]$Source,                                 # 单个文件夹：其"内容"作为归档根
   [string[]]$AddItems = @(),                       # 额外顶层项（文件/文件夹），按原名字加入归档根
-  [Parameter(Mandatory=$true)][string]$Output,
+  [string]$Output,                                 # 不传则默认 桌面\<主名>-Setup.exe（主名由 -Name 或 -Source 文件夹名自动清洗）
+  [string]$Name,                                   # 软件主名（如 Ventoy）。不传则从 -Source 文件夹名自动提取
 
   [string]$Stub,                                   # SFX stub，默认 <SevenZipDir>\7z.sfx
   [string]$SevenZipDir = "C:\Program Files\7-Zip",
   [string]$Icon,                                   # 可选 .ico，会盖到 stub 副本上
   [string[]]$Exclude = @("*.bak", "*.tmp"),        # 不打包的 glob
+  [int]$Level = 5,                                 # 7z 压缩等级 1-9（默认 5；大包求快用 3，求最小体积用 9）
 
   # —— 以下仅 7zS.sfx / 7zSD.sfx 生效；7z.sfx 会忽略 ——
   [string]$Title,
@@ -74,6 +76,33 @@ if (Test-Path -LiteralPath $defaultsFile) {
 
 if (-not $Stub) { $Stub = Join-Path $SevenZipDir "7z.sfx" }
 
+# ---------- 0c. 输出名推导（用户定标准：默认桌面 + 只写软件主名）----------
+# 从文件夹名剥掉版本号/平台后缀：ventoy-1.1.11 -> Ventoy；DirectX Repair 原样保留；
+# jianyingpro_6.0.1_x64 -> Jianyingpro（首字母大写，其余原样）。
+function Get-MainName([string]$s) {
+  $n = [System.IO.Path]::GetFileNameWithoutExtension($s.Trim())
+  $prev = ""
+  while ($prev -ne $n) {
+    $prev = $n
+    $n = $n -replace '[-_ ]+v?\d+(\.\d+)*(-?(beta|alpha|rc)\d*)?$', ''          # 尾部版本号
+    $n = $n -replace '[-_ ]+(windows?|win32|win64|x64|x86|amd64|arm64|portable|setup|installer|beta|alpha)$', ''  # 尾部平台/形态词
+  }
+  $n = $n.Trim()
+  if ($n.Length -gt 1) { return $n.Substring(0,1).ToUpper() + $n.Substring(1) }
+  return $n.ToUpper()
+}
+
+if (-not $Output) {
+  $rawName = $Name
+  if (-not $rawName) {
+    if (-not $Source) { throw "不传 -Output 时必须提供 -Source 或 -Name 来推导输出名" }
+    $rawName = Split-Path -Leaf $Source
+  }
+  $mainName = Get-MainName $rawName
+  $Output = Join-Path ([Environment]::GetFolderPath("Desktop")) "$mainName-Setup.exe"
+  Write-Host "output   : 自动命名 $rawName -> $mainName（默认桌面）"
+}
+
 foreach ($p in @($sevenZip, $Stub)) {
   if (-not (Test-Path -LiteralPath $p)) { throw "找不到: $p" }
 }
@@ -114,7 +143,7 @@ Write-Host "工作目录 : $work"
 try {
   # ---------- 3. 压缩 payload ----------
   $payload = Join-Path $work "payload.7z"
-  $sevenZipArgs = @("a", "-t7z", "-m0=lzma2", "-mx=9", "-ms=on", "-mfb=64", "-md=64m", "-mqs=on", "-mmt=on", $payload) + $items
+  $sevenZipArgs = @("a", "-t7z", "-m0=lzma2", "-mx=$Level", "-ms=on", "-mfb=64", "-md=64m", "-mqs=on", "-mmt=on", $payload) + $items
   foreach ($e in $Exclude) { $sevenZipArgs += "-xr!$e" }
 
   $out7z = & $sevenZip @sevenZipArgs 2>&1

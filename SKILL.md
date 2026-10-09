@@ -83,11 +83,39 @@ powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   -Source "D:\MyApp" -Output "D:\dist\MyApp-portable.exe" -Icon "D:\MyApp\app.ico"
 
 # ② 安装器式：静默无窗 + 现代向导 + 真实进度（7zSD.sfx，固定标准）
+#    不传 -Output：自动命名 桌面\<主名>-Setup.exe（主名自动剥版本号/平台后缀）
 powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
-  -Stub "D:\tools\7zSD.sfx" -Output "$env:USERPROFILE\Desktop\MyApp-Setup.exe" `
-  -AddItems "D:\build\install.cmd","D:\build\install_run.cmd","D:\build\launch_hidden.vbs","D:\build\wizard.ps1","D:\build\app.ico","D:\build\MyApp-win32-x64" `
+  -Stub "D:\tools\7zSD.sfx" -Source "D:\software\ventoy-1.1.11" `
+  -AddItems "D:\build\install.cmd","D:\build\install_run.cmd","D:\build\launch_hidden.vbs","D:\build\wizard.ps1","D:\build\app.ico" `
   -ExecuteFile "wscript.exe" -ExecuteParameters "launch_hidden.vbs install.cmd"
 ```
+
+## 输出位置与命名（固定标准，用户 2026-10-10 定）
+
+- **输出位置默认桌面**：不传 `-Output` 时自动落到 `桌面\<主名>-Setup.exe`。
+- **文件名只写软件主名**：从 `-Name`（优先）或 `-Source` 文件夹名自动清洗——剥掉尾部
+  版本号（`-1.1.11`/`_v2.0`）、平台/形态词（`-windows`/`_x64`/`-portable` 等），首字母大写：
+  `ventoy-1.1.11-windows\ventoy-1.1.11` → `Ventoy-Setup.exe`；`DirectX Repair` → `DirectX Repair-Setup.exe`。
+- 需要自定义时显式传 `-Output`（优先级最高）。
+
+## 提速与并行分工（用户反馈"流程比手工慢"后的优化，2026-10-10）
+
+**构建本身提速**：
+- **压缩等级**：`-Level`（1–9，**默认 5**，原来是写死的 9——大包慢的主因）。
+  软件安装包多数是已压缩二进制，`-Level 3` 更快、体积几乎不变；只有追极限体积才传 `-Level 9`。
+- **默认横幅/默认输出/默认 stub/默认图标**：模板化后不用每次现找素材，`-Banner` 都不用传。
+
+**流程提速（agent 侧）**：
+- **别重复真机预览**：标准 UI 已定稿，构建即正确。日常交付跳过"弹窗截图确认"环节；
+  只有改了 wizard.ps1 本身才需要预览。
+- **验证用 `-y` 烟测**：`.\Xxx-Setup.exe -y` 静默跑完全流程，适合脚本化自检，不用盯着屏幕。
+
+**可并行的子代理分工**（打包大软件时主线不必串行等待）：
+- 子代理 A（素材）：`extract_icon.py` 提软件图标 + 横幅/脚本文件就位（banner-dqtx.png、wizard.ps1、launch_hidden.vbs 拷贝）。
+- 子代理 B（脚本）：按 SKILL.md 模板写 `install.cmd` + `install_run.cmd`（纯 ASCII，中文烘在 wizard 副本里）。
+- 主线：等 A、B 完成后**一次 `build_sfx.ps1` 完成构建**（压缩是最耗时步骤，只跑一次）。
+- **不能并行的硬顺序**：图标必须 stamp 在 stub 副本上再 concat（build 脚本内部已保证）；
+  构建必须等素材+脚本齐；真机验证永远最后做。
 
 ## 静默无窗标准（用户 2026-10-10 定）
 
@@ -143,7 +171,8 @@ exit /b 0
 - ⚠️ 进度百分比按字节估算，复制到目标之外的文件（如桌面快捷方式）不计入；复制极快时进度条一闪而过属正常。
 
 参数：`-Source` 单个文件夹（内容铺到归档根）、`-AddItems` 额外顶层项（保持原名，用来把 **安装脚本 + 程序目录** 一起塞进归档根）、
-`-Output` 输出 exe、`-Stub` stub 路径（默认 `7z.sfx`）、`-Icon` 换图标、`-Exclude` 排除、
+`-Output` 输出 exe（**不传 = 默认桌面\\<主名>-Setup.exe**）、`-Name` 软件主名（不传则从 -Source 文件夹名自动清洗）、
+`-Level` 压缩等级（1–9，默认 5）、`-Stub` stub 路径（默认 `7z.sfx`）、`-Icon` 换图标、`-Exclude` 排除、
 `-Title`/`-BeginPrompt`/`-Progress`/`-Directory`/`-RunProgram`/`-ExecuteFile`/`-ExecuteParameters`（**仅 7zSD 生效**）、
 `-ResLang` 图标资源语言 ID（默认 `0x409`，必须与目标 stub 已有的一致）、`-KeepWork` 保留中间文件。
 
