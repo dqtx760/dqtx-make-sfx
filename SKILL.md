@@ -82,10 +82,10 @@ UI 仍然用固定标准 `wizard.ps1`——`-Default` 传解析后的环境变�
 powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   -Source "D:\MyApp" -Output "D:\dist\MyApp-portable.exe" -Icon "D:\MyApp\app.ico"
 
-# ② 安装器式：静默无窗 + 现代向导选路径（7zSD.sfx，固定标准）
+# ② 安装器式：静默无窗 + 现代向导 + 真实进度（7zSD.sfx，固定标准）
 powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   -Stub "D:\tools\7zSD.sfx" -Output "$env:USERPROFILE\Desktop\MyApp-Setup.exe" `
-  -AddItems "D:\build\install.cmd","D:\build\launch_hidden.vbs","D:\build\wizard.ps1","D:\build\app.ico","D:\build\MyApp-win32-x64" `
+  -AddItems "D:\build\install.cmd","D:\build\install_run.cmd","D:\build\launch_hidden.vbs","D:\build\wizard.ps1","D:\build\app.ico","D:\build\MyApp-win32-x64" `
   -ExecuteFile "wscript.exe" -ExecuteParameters "launch_hidden.vbs install.cmd"
 ```
 
@@ -103,10 +103,44 @@ powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   解法：config 用 `ExecuteFile="wscript.exe"` + `ExecuteParameters="launch_hidden.vbs install.cmd"`，
   由 `scripts\launch_hidden.vbs`（GUI 子系统，无控制台）以 `WshShell.Run(..., 0, True)` 完全隐藏方式跑 install.cmd，
   退出码原样回传 7zSD。vbs 不传参时默认跑同目录 `install.cmd`。
-- **向导里的黑窗**：wizard.ps1 启动即 `SW_HIDE` 宿主控制台（双保险），**任何路径都不再唤回**
-  （点了开始安装也在后台静默复制；大文件复制期间无进度反馈，属已知取舍）。
-- **打包清单**：`install.cmd` + `launch_hidden.vbs` + `wizard.ps1` + `.ico` + `banner-dqtx.png`（默认横幅）+ 程序目录，
+- **向导里的黑窗**：wizard.ps1 启动即 `SW_HIDE` 宿主控制台（双保险），**任何路径都不再唤回**。
+- **打包清单**：`install.cmd` + `install_run.cmd` + `launch_hidden.vbs` + `wizard.ps1` + `.ico` + `banner-dqtx.png`（默认横幅）+ 程序目录，
   全部进 `-AddItems`。
+
+## 安装进度视图（软件包标准流程，用户 2026-10-10 定）
+
+点「开始安装」后向导**不关闭**，切换为进度视图：**标题栏"数据解压中" + "正在安装 <AppName>" +
+从左走到右的真实进度条**；走满 100% 后**窗口自动关闭，主程序由安装脚本 `start ""` 拉起**。
+失败则显示红色"安装失败 + 退出码"。实现 = 两段脚本：
+
+- **`install.cmd`（入口，被 vbs 隐藏调起）**：只负责调向导，纯 ASCII：
+
+```cmd
+@echo off
+setlocal
+powershell -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0wizard.ps1" -Default "D:\software\MyApp" -AppName "MyApp" -Icon "%~dp0app.ico" -RunAfter "%~dp0install_run.cmd" -WatchSrc "%~dp0MyApp-win32-x64"
+exit /b %ERRORLEVEL%
+```
+
+- **`install_run.cmd`（干活的，`%1` = 用户选的目标路径）**：复制 + 快捷方式 + 启动，纯 ASCII：
+
+```cmd
+@echo off
+set "DST=%~1"
+if "%DST%"=="" exit /b 1
+if not exist "%DST%" mkdir "%DST%"
+robocopy "%~dp0MyApp-win32-x64" "%DST%" /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP >nul
+if errorlevel 8 exit /b 1
+powershell -NoProfile -Command "$w=New-Object -ComObject WScript.Shell; $l=$w.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\MyApp.lnk'); $l.TargetPath='%DST%\MyApp.exe'; $l.WorkingDirectory='%DST%'; $l.IconLocation='%DST%\MyApp.exe,0'; $l.Save()"
+start "" /D "%DST%" "%DST%\MyApp.exe"
+exit /b 0
+```
+
+- **真实进度原理**：`-WatchSrc` 指向被复制的源文件夹，向导先算源总字节（并扣掉目标已有字节，重装也准），
+  计时器每 200ms 统计目标目录新增字节 → 占比推进（平滑每次最多 +2%），脚本退出即跳 100%，停 0.6s 自动关窗。
+- **不传 `-RunAfter`** 则保持旧行为：向导只选路径、打印到 stdout 后退出，复制由 install.cmd 静默完成（无进度条）。
+- 配置包（用例②）同样结构：`install_run.cmd` 里换成 `robocopy ... /E /IS /IT`，去掉快捷方式和启动。
+- ⚠️ 进度百分比按字节估算，复制到目标之外的文件（如桌面快捷方式）不计入；复制极快时进度条一闪而过属正常。
 
 参数：`-Source` 单个文件夹（内容铺到归档根）、`-AddItems` 额外顶层项（保持原名，用来把 **安装脚本 + 程序目录** 一起塞进归档根）、
 `-Output` 输出 exe、`-Stub` stub 路径（默认 `7z.sfx`）、`-Icon` 换图标、`-Exclude` 排除、
@@ -131,6 +165,9 @@ Stub=C:\Users\Administrator\.agents\tools\7zip-extra\sdk\bin\7zSD-zh.sfx
 
 `7zSD.sfx` 的运行模型：**解压到 `%TEMP%\7zSxxxx\` → 以该目录为 CWD 执行 `ExecuteFile`/`RunProgram` → 等它退出 → 删掉临时目录**。
 所以被启动的脚本必须**先把文件搬到永久位置，再启动程序**，绝不能直接在 temp 里跑主程序。
+
+> 标准流程已升级为「安装进度视图」的两段脚本结构（`install.cmd` 调向导 + `install_run.cmd` 干活，
+> `%1`=目标路径），见上方「安装进度视图」章节——**新包一律用那套**。下面保留单脚本骨架仅供理解要点：
 
 `install.cmd`（放归档根，由 `launch_hidden.vbs` 隐藏调起）：
 

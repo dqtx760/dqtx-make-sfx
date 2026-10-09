@@ -4,7 +4,9 @@
   [string]$Title   = "安装程序",
   [string]$Icon    = "rar.ico",  # 左上角/任务栏图标，默认取脚本同目录的 rar.ico（WinRAR 图标，固定标准）
   [string]$Banner  = "",        # 横幅图片路径；不传或文件不存在时回退到 DQTX 标准横幅
-  [string]$Tagline = "安全 · 绿色 · 纯净"
+  [string]$Tagline = "安全 · 绿色 · 纯净",
+  [string]$RunAfter = "",       # 可选：点开始安装后由向导调起的安装脚本（%1=目标路径），向导切换"数据解压中"进度视图并等待完成
+  [string]$WatchSrc = ""        # 可选：被复制的源文件夹（如 %~dp0app）。提供后进度条按"已复制字节/源总字节"真实推进（从左走到右）
 )
 
 # 现代扁平风格安装向导（无边框自绘标题栏 + 横幅 + 路径选择），替代 7zSD 丑陋的 BeginPrompt。
@@ -16,6 +18,7 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()   # Marquee 进度条需要视觉样式
 
 # ---- 默认横幅：未传 -Banner 时回退到 DQTX 标准横幅（头像+公众号+官网，固定标准）----
 if (-not $Banner -or -not (Test-Path -LiteralPath $Banner)) {
@@ -302,6 +305,34 @@ $btnBrowse.Add_Click({
 })
 $form.Controls.Add($btnBrowse)
 
+# ---- 进度视图（点开始安装后切换；初始隐藏）----
+function Get-FolderBytes([string]$path) {
+  if (-not (Test-Path -LiteralPath $path)) { return 0L }
+  $sum = 0L
+  foreach ($f in [System.IO.Directory]::EnumerateFiles($path, "*", [System.IO.SearchOption]::AllDirectories)) {
+    try { $sum += (New-Object System.IO.FileInfo($f)).Length } catch {}
+  }
+  return $sum
+}
+
+$yProg = $Y_CAP + 34
+$progBar = New-Object System.Windows.Forms.ProgressBar
+$progBar.Minimum = 0
+$progBar.Maximum = 100
+$progBar.Value = 0
+$progBar.Location = New-Object System.Drawing.Point(24, $yProg)
+$progBar.Size = New-Object System.Drawing.Size(632, 10)
+$progBar.Visible = $false
+$form.Controls.Add($progBar)
+
+$script:doneReady = $false
+$script:runExit = 0
+$script:dstPath = ""
+$script:totalBytes = 0L
+$script:initBytes = 0L
+$script:shownPct = 0
+$script:closeTicks = 0
+
 # ---- 底部：标签 + 按钮 ----
 $checkPb = New-Object System.Windows.Forms.PictureBox
 $checkPb.Image = (New-CheckIcon 18)
@@ -329,6 +360,13 @@ $btnOk.Location = New-Object System.Drawing.Point(446, $Y_BTN)
 $btnOk.Size = New-Object System.Drawing.Size(128, $H_BTN)
 $btnOk.Region = New-Object System.Drawing.Region((New-RoundPath 128 $H_BTN 10))
 $btnOk.Add_Click({
+  # 安装完成/失败后的"完成/关闭"按钮
+  if ($script:doneReady) {
+    if ($script:runExit -eq 0) { $form.DialogResult = [System.Windows.Forms.DialogResult]::OK }
+    else                       { $form.DialogResult = [System.Windows.Forms.DialogResult]::Cancel }
+    $form.Close()
+    return
+  }
   $p = $txt.Text.Trim()
   if ([string]::IsNullOrWhiteSpace($p)) { return }
   # UNC 路径跳过盘符检查
@@ -339,6 +377,76 @@ $btnOk.Add_Click({
         [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
       return
     }
+  }
+  if ($RunAfter) {
+    # —— 切换"数据解压中"进度视图：向导调起安装脚本并等待 ——
+    $script:dstPath = $p
+    $titleLabel.Text = "数据解压中"
+    $lblT1.Text = "正在安装 "
+    $lblD.Text = "数据解压中，请稍候…"
+    $lblCap.Visible = $false; $fieldPanel.Visible = $false; $btnBrowse.Visible = $false
+    $checkPb.Visible = $false; $lblTag.Visible = $false
+    $btnOk.Visible = $false; $btnCancel.Visible = $false
+    $progBar.Value = 0
+    $progBar.Visible = $true
+
+    # 真实进度：源总字节 vs 目标目录新增字节（重装时先扣掉已有字节）
+    if ($WatchSrc -and (Test-Path -LiteralPath $WatchSrc)) {
+      $script:totalBytes = Get-FolderBytes $WatchSrc
+      $script:initBytes = Get-FolderBytes $script:dstPath
+    }
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "cmd.exe"
+    $psi.Arguments = '/c ""' + $RunAfter + '" "' + $script:dstPath + '""'
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $script:procRun = [System.Diagnostics.Process]::Start($psi)
+
+    $script:runTimer = New-Object System.Windows.Forms.Timer
+    $script:runTimer.Interval = 200
+    $script:runTimer.Add_Tick({
+      # 100% 稍停后自动关窗（主程序由安装脚本 start 拉起）
+      if ($script:closeTicks -gt 0) {
+        $script:closeTicks--
+        if ($script:closeTicks -eq 0) {
+          $script:runTimer.Stop()
+          $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
+          $form.Close()
+        }
+        return
+      }
+      if ($script:procRun.HasExited) {
+        $script:runExit = $script:procRun.ExitCode
+        $script:procRun.Dispose()
+        if ($script:runExit -eq 0) {
+          $progBar.Value = 100
+          $script:closeTicks = 3   # 0.6s 后自动关闭
+        } else {
+          $script:runTimer.Stop()
+          $progBar.Visible = $false
+          $titleLabel.Text = "安装失败"
+          $lblT1.Text = "安装失败 "
+          $lblT1.ForeColor = [System.Drawing.Color]::FromArgb(220, 38, 38)
+          $lblD.Text = "安装脚本退出码 " + $script:runExit + "，请重试或联系发布者。"
+          $btnOk.Text = "关  闭"
+          $btnOk.Visible = $true
+          $script:doneReady = $true
+        }
+        return
+      }
+      # 进行中：按已复制字节占比推进，平滑递增（每次最多 +2%）
+      if ($script:totalBytes -gt 0) {
+        $copied = (Get-FolderBytes $script:dstPath) - $script:initBytes
+        $target = [int](99.0 * $copied / $script:totalBytes)
+        if ($target -gt $script:shownPct) {
+          $script:shownPct = [Math]::Min($script:shownPct + 2, $target)
+          $progBar.Value = [Math]::Min(99, $script:shownPct)
+        }
+      }
+    })
+    $script:runTimer.Start()
+    return
   }
   $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
   $form.Close()
