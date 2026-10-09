@@ -139,7 +139,3 @@ AI 工具与工作流实践者 · GitHub 开源项目作者
 </p>
 
 卡在安装、配置、报错，或想把 AI 接进自己的工作流，可以直接找我。
-
-<p align="center">
-  <a href="https://github.com/oil-oil/beautify-github-readme"><img src="./assets/readme/made-with-beautify.svg" width="300" alt="README made with beautify-github-readme"></a>
-</p>
