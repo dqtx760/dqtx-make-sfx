@@ -30,7 +30,9 @@ param(
   [string]$BeginPrompt,
   [string]$Directory,
   [string]$RunProgram,
-  [string]$Progress = "yes",
+  [string]$ExecuteFile,                            # 与 RunProgram 二选一：走 ShellExecuteEx（支持 -ExecuteParameters 传参，无 .\ 前缀问题）
+  [string]$ExecuteParameters,
+  [string]$Progress = "no",                        # "no" = 解压全程静默（固定标准：用户不想看到"数据解压中"框）
   [uint16]$ResLang = 0x409,                        # 图标资源语言 ID，须与目标 stub 已有的一致，否则是"新增"不是"替换"
 
   [switch]$KeepWork
@@ -89,6 +91,7 @@ $stubReadsConfig = ($stubName -ne "7z.sfx" -and $stubName -ne "7zcon.sfx")
 $wantConfig = $PSBoundParameters.ContainsKey("Title") -or
               $PSBoundParameters.ContainsKey("BeginPrompt") -or
               $PSBoundParameters.ContainsKey("Directory") -or
+              $PSBoundParameters.ContainsKey("ExecuteFile") -or
               $PSBoundParameters.ContainsKey("RunProgram")
 
 Write-Host "SFX stub : $Stub ($((Get-Item -LiteralPath $Stub).Length) bytes)"
@@ -126,6 +129,10 @@ try {
     if ($PSBoundParameters.ContainsKey("Title"))       { $lines += "Title=`"$Title`"" }
     if ($PSBoundParameters.ContainsKey("BeginPrompt")) { $lines += "BeginPrompt=`"$BeginPrompt`"" }
     if ($PSBoundParameters.ContainsKey("Directory"))   { $lines += "Directory=`"$Directory`"" }
+    if ($PSBoundParameters.ContainsKey("ExecuteFile")) {
+      $lines += "ExecuteFile=`"$ExecuteFile`""
+      if ($ExecuteParameters) { $lines += "ExecuteParameters=`"$ExecuteParameters`"" }
+    }
     if ($PSBoundParameters.ContainsKey("RunProgram"))  { $lines += "RunProgram=`"$RunProgram`"" }
     $lines += "Progress=`"$Progress`""
     $lines += ";!@InstallEnd@!"

@@ -82,17 +82,35 @@ UI 仍然用固定标准 `wizard.ps1`——`-Default` 传解析后的环境变�
 powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   -Source "D:\MyApp" -Output "D:\dist\MyApp-portable.exe" -Icon "D:\MyApp\app.ico"
 
-# ② 安装器式：装到固定路径 + 自动运行 + 建桌面快捷方式（7zSD.sfx）
+# ② 安装器式：静默无窗 + 现代向导选路径（7zSD.sfx，固定标准）
 powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   -Stub "D:\tools\7zSD.sfx" -Output "$env:USERPROFILE\Desktop\MyApp-Setup.exe" `
-  -AddItems "D:\build\install.cmd","D:\build\MyApp-win32-x64" `
-  -Title "MyApp 安装程序" -BeginPrompt "即将安装到 D:\software\MyApp，是否继续？" `
-  -RunProgram "install.cmd"
+  -AddItems "D:\build\install.cmd","D:\build\launch_hidden.vbs","D:\build\wizard.ps1","D:\build\app.ico","D:\build\MyApp-win32-x64" `
+  -ExecuteFile "wscript.exe" -ExecuteParameters "launch_hidden.vbs install.cmd"
 ```
+
+## 静默无窗标准（用户 2026-10-10 定）
+
+**双击 exe 后全程只有 wizard 向导一个窗口**——不出现"数据解压中"进度框、不出现任何 CMD 黑窗。
+实测踩坑后得出的正确配方：
+
+- **`Progress="no"`**（build_sfx.ps1 现在默认就是 no）→ 解压全程静默，7zSD 原生进度框彻底不显示。
+- **`RunProgram` 不能带参数**：7zSD 会把 `Directory` 前缀（默认 `.\`）拼到整个字符串开头，
+  `RunProgram="wscript.exe launch_hidden.vbs install.cmd"` 会变成找 `.\wscript.exe` → "系统找不到指定的文件"。
+  想传参必须用 **`ExecuteFile` + `ExecuteParameters`**（走 ShellExecuteEx，不受 Directory 前缀影响，
+  官方文档示例就是 `ExecuteFile="msiexec.exe"`）。
+- **CMD 黑窗的消除**：`RunProgram="install.cmd"` 会让 7zSD（GUI 程序）给 cmd.exe 新建**可见**控制台 → 闪黑窗。
+  解法：config 用 `ExecuteFile="wscript.exe"` + `ExecuteParameters="launch_hidden.vbs install.cmd"`，
+  由 `scripts\launch_hidden.vbs`（GUI 子系统，无控制台）以 `WshShell.Run(..., 0, True)` 完全隐藏方式跑 install.cmd，
+  退出码原样回传 7zSD。vbs 不传参时默认跑同目录 `install.cmd`。
+- **向导里的黑窗**：wizard.ps1 启动即 `SW_HIDE` 宿主控制台（双保险），**任何路径都不再唤回**
+  （点了开始安装也在后台静默复制；大文件复制期间无进度反馈，属已知取舍）。
+- **打包清单**：`install.cmd` + `launch_hidden.vbs` + `wizard.ps1` + `.ico` + `banner-dqtx.png`（默认横幅）+ 程序目录，
+  全部进 `-AddItems`。
 
 参数：`-Source` 单个文件夹（内容铺到归档根）、`-AddItems` 额外顶层项（保持原名，用来把 **安装脚本 + 程序目录** 一起塞进归档根）、
 `-Output` 输出 exe、`-Stub` stub 路径（默认 `7z.sfx`）、`-Icon` 换图标、`-Exclude` 排除、
-`-Title`/`-BeginPrompt`/`-Progress`/`-Directory`/`-RunProgram`（**仅 7zSD 生效**）、
+`-Title`/`-BeginPrompt`/`-Progress`/`-Directory`/`-RunProgram`/`-ExecuteFile`/`-ExecuteParameters`（**仅 7zSD 生效**）、
 `-ResLang` 图标资源语言 ID（默认 `0x409`，必须与目标 stub 已有的一致）、`-KeepWork` 保留中间文件。
 
 ## 默认值（sfx-defaults.txt）
@@ -111,10 +129,10 @@ Stub=C:\Users\Administrator\.agents\tools\7zip-extra\sdk\bin\7zSD-zh.sfx
 
 ## 安装器模式（用例②）的标准骨架
 
-`7zSD.sfx` 的运行模型：**解压到 `%TEMP%\7zSxxxx\` → 以该目录为 CWD 执行 `RunProgram` → 等它退出 → 删掉临时目录**。
-所以 `RunProgram` 指向的脚本必须**先把文件搬到永久位置，再启动程序**，绝不能直接在 temp 里跑主程序。
+`7zSD.sfx` 的运行模型：**解压到 `%TEMP%\7zSxxxx\` → 以该目录为 CWD 执行 `ExecuteFile`/`RunProgram` → 等它退出 → 删掉临时目录**。
+所以被启动的脚本必须**先把文件搬到永久位置，再启动程序**，绝不能直接在 temp 里跑主程序。
 
-`install.cmd`（放归档根，`RunProgram="install.cmd"`）：
+`install.cmd`（放归档根，由 `launch_hidden.vbs` 隐藏调起）：
 
 ```cmd
 @echo off
@@ -171,7 +189,7 @@ if not defined DST (
 
 - **中文参数别写在 cmd 里**（cmd 要保持纯 ASCII）——把 `-Title` 等中文默认值
   直接改在项目自己的 wizard.ps1 副本里（.ps1 是 UTF-8 BOM，中文安全）。
-- 打包清单：`install.cmd` + `wizard.ps1` + `rar.ico` + `banner*.png` + 程序目录，全部进 `-AddItems`。
+- 打包清单：`install.cmd` + `launch_hidden.vbs` + `wizard.ps1` + `.ico` + `banner-dqtx.png` + 程序目录，全部进 `-AddItems`。
 - ⚠️ 流程顺序无法改变：7zSD 是**先解压到 `%TEMP%`、后跑 RunProgram**。去掉 BeginPrompt 后
   双击的体验是：先弹"数据解压中"进度条（几十秒）→ 再弹这个自定义对话框 → 复制到目标 → 启动。
   想要"先出界面/先选路径再解压"只能换第三方 modSFX（7zsfx.info 的魔改 7zSD，未签名二进制，需自行信任）。
@@ -213,6 +231,8 @@ python scripts\localize_stub.py <stub.sfx> -o <out.sfx>
 1. **`Directory` 不是"解压路径"，是 `RunProgram` 的前缀。**
    源码 `dirPrefix + appLaunched` 直接字符串相加：写 `Directory="."` 会得到 `.install.cmd`（找不到文件，静默失败）。
    **默认 `.\` 就是对的——不需要就别传这个参数。** 想指定安装位置请写进 `install.cmd`。
+   推论：**`RunProgram` 只能写单个文件名，不能带参数**（带参数会被前缀拼坏 → "系统找不到指定的文件"）。
+   要传参用 `-ExecuteFile` + `-ExecuteParameters`（见「静默无窗标准」）。
 2. **图标必须 stamp 在 stub 副本上，再 concat。** `UpdateResource()` 把 PE image size 当 EOF，
    对已拼接的 exe 盖章会把 appended payload 截掉（12MB → 196KB）。
 3. **config.txt 必须 UTF-8 BOM + CRLF**（开头固定 `;!@Install@!UTF-8!`）。缺 BOM 或用 LF → 整个 config 被当二进制跳过。
@@ -230,7 +250,7 @@ python scripts\localize_stub.py <stub.sfx> -o <out.sfx>
 ## 验证产物
 
 ```powershell
-.\MyApp-Setup.exe -y        # -y 跳过所有对话框，静默跑完 RunProgram
+.\MyApp-Setup.exe -y        # -y 跳过所有对话框，静默跑完 ExecuteFile/RunProgram
 ```
 `-y` 用于脚本化自测；正式交付时不加，双击即走正常对话框流程。
 

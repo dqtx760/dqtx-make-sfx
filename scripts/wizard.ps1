@@ -364,10 +364,8 @@ $form.Add_Shown({ $txt.Select($txt.Text.Length, 0); $txt.Focus() })
 
 $dlgResult = $form.ShowDialog()
 
-# 对话框结束（无论安装还是取消）都把控制台唤回来，让后续复制进度可见
-if ($hwndConsole -ne [IntPtr]::Zero) { [void][Wiz.U32]::ShowWindow($hwndConsole, 4) }   # SW_SHOWNA
-
 if ($dlgResult -eq [System.Windows.Forms.DialogResult]::OK) {
+  # 全程不显示控制台（用户定标准：任何阶段都不要黑窗），复制在后台静默完成
   Write-Output $txt.Text.Trim()
   exit 0
 }
