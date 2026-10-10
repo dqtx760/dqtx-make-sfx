@@ -51,8 +51,12 @@ if (-not $exeRel -and -not $NoLaunch) {
   $exes = Get-ChildItem -LiteralPath $srcFull -Recurse -Filter *.exe -File |
           Where-Object { $_.Name -notmatch $bad }
   if (-not $exes) { throw "未找到主程序 exe：请 -MainExe 指定，或 -NoLaunch" }
-  $hit = $exes | Where-Object { $_.BaseName -match [regex]::Escape($mainName) -or $mainName -match [regex]::Escape($_.BaseName) } |
-         Sort-Object Length -Descending | Select-Object -First 1
+  # 优先完全匹配主名（如 FlClash.exe 优于 FlClashCore.exe）
+  $hit = $exes | Where-Object { $_.BaseName -eq $mainName } | Select-Object -First 1
+  if (-not $hit) {
+    $hit = $exes | Where-Object { $_.BaseName -match [regex]::Escape($mainName) -or $mainName -match [regex]::Escape($_.BaseName) } |
+           Sort-Object Length -Descending | Select-Object -First 1
+  }
   if (-not $hit) { $hit = $exes | Sort-Object Length -Descending | Select-Object -First 1 }
   $exeRel = $hit.FullName.Substring($srcFull.Length).TrimStart('\')
 }
@@ -84,7 +88,9 @@ if ($exeRel) {
     if (Test-Path -LiteralPath $cand) { $pyExe = $cand }
   }
   if ($pyExe) {
-    & $pyExe (Join-Path $scripts "extract_icon.py") (Join-Path $srcFull $exeRel) $ico 2>$null | Out-Null
+    try {
+      & $pyExe (Join-Path $scripts "extract_icon.py") (Join-Path $srcFull $exeRel) $ico 2>&1 | Out-Null
+    } catch {}
     $gotIcon = Test-Path -LiteralPath $ico
   }
 }
