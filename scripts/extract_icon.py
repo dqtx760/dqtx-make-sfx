@@ -67,19 +67,22 @@ def extract(exe, out):
     goff = rva2off(groups[gid][0])
     _, _, count = struct.unpack_from("<HHH", data, goff)
 
-    entries, imgs, offset = [], [], 6 + 16 * count
+    raw_entries = []
     for i in range(count):
         bw, bh, bc, br, planes, bits, _sz, rid = struct.unpack_from(
-            "<BBBBHHII", data, goff + 6 + 16 * i)
+            "<BBBBHHIH", data, goff + 6 + 14 * i)
         if rid not in icons:
             continue
         rva2, size = icons[rid]
         off = rva2off(rva2)
         img = data[off:off + size]
+        raw_entries.append((bw, bh, bc, br, planes, bits, img))
+
+    entries, imgs, offset = [], [], 6 + 16 * len(raw_entries)
+    for bw, bh, bc, br, planes, bits, img in raw_entries:
         entries.append(struct.pack("<BBBBHHII", bw, bh, bc, br, planes, bits, len(img), offset))
         imgs.append(img)
         offset += len(img)
-
     ico = struct.pack("<HHH", 0, 1, len(entries)) + b"".join(entries) + b"".join(imgs)
     pathlib.Path(out).write_bytes(ico)
     print(f"[OK] 提取 {len(entries)} 个尺寸 -> {out} ({len(ico):,} bytes)")
