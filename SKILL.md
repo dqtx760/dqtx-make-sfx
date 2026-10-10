@@ -78,17 +78,51 @@ UI 仍然用固定标准 `wizard.ps1`——`-Default` 传解析后的环境变�
 ## 用法
 
 ```powershell
+# ⓪ 一键打包（推荐，最快路径）：分析→素材→脚本→构建全自动，产出即成品
+powershell -ExecutionPolicy Bypass -File scripts\pack.ps1 -Source "D:\software\ventoy-1.1.11"
+powershell -ExecutionPolicy Bypass -File scripts\pack.ps1 -Source "D:\theme" -NoLaunch -Overwrite   # 配置包
+
 # ① 简单打包 + 换图标（7z.sfx，零依赖）
 powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   -Source "D:\MyApp" -Output "D:\dist\MyApp-portable.exe" -Icon "D:\MyApp\app.ico"
 
-# ② 安装器式：静默无窗 + 现代向导 + 真实进度（7zSD.sfx，固定标准）
+# ② 安装器式（手动组装，需要定制时）：静默无窗 + 现代向导 + 真实进度（7zSD.sfx，固定标准）
 #    不传 -Output：自动命名 桌面\<主名>-Setup.exe（主名自动剥版本号/平台后缀）
 powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
   -Stub "D:\tools\7zSD.sfx" -Source "D:\software\ventoy-1.1.11" `
   -AddItems "D:\build\install.cmd","D:\build\install_run.cmd","D:\build\launch_hidden.vbs","D:\build\wizard.ps1","D:\build\app.ico" `
   -ExecuteFile "wscript.exe" -ExecuteParameters "launch_hidden.vbs install.cmd"
 ```
+
+## 一键打包（pack.ps1，2026-10-10 定稿）
+
+**一条命令完成全流程**：探测主程序（排除 uninst/setup/ffmpeg 等，名字匹配主名优先，否则取最大 exe）
+→ `extract_icon.py` 提软件图标（失败退 rar.ico）→ 生成 `install.cmd`/`install_run.cmd`/`install_after.ps1`
+（cmd 纯 ASCII；快捷方式+启动放 install_after.ps1，UTF-8 BOM 中文安全）→ wizard 副本烘入中文默认值
+→ 调 `build_sfx.ps1` 产出 `桌面\<主名>-Setup.exe`。
+
+参数：`-Name` 主名、`-InstallDir` 默认安装路径（默认 `D:\software\<主名>`）、`-MainExe` 手动指定主程序
+（包内相对路径）、`-Output`、`-Level`（默认 5）、`-NoLaunch`（配置包/纯文件包，不建快捷方式不启动）、
+`-Overwrite`（配置包，robocopy `/IS /IT` 强制覆盖）。
+
+**实测耗时（本机，2026-10-10）**：
+
+| 包 | 原始大小 | 产出 | 总耗时 | 时间分布 |
+|---|---|---|---|---|
+| PackTest（小包） | 1.8 MB | 1.8 MB | **7 秒** | 全流程 |
+| 剪映（Level 5） | 1.7 GB（2409 文件） | 687 MB | **226 秒** | 压缩 218s（96%）+ 盖章 2s + 拼接 1s + 哈希 4s |
+| 剪映（Level 3） | 同上 | 722 MB | 256 秒 | 同级反而更慢——压缩耗时受磁盘/杀软波动影响大，**不必为了快刻意降档** |
+
+**结论**：构建期瓶颈只有压缩（硬件决定）；小包慢的根因是 **agent 多轮操作延迟**（昨晚小包 ~10 分钟
+≈ 十几次工具调用的回合耗时），`pack.ps1` 一次调用搞定 → 秒级。**应用化（GUI 打包器）的提速空间
+≈ pack.ps1 已经拿到的部分**——GUI 只是在 pack.ps1 上再包一层壳，对压缩时间无能为力；
+要做随时可以在 pack.ps1 之上加（csc 编译 WPF 单文件 exe 即可）。
+
+⚠️ 两个实测坑：
+- **`-y` 只跳过 7zSD 原生对话框**（BeginPrompt/进度），自制 wizard 向导仍会弹出——
+  本流程没有"完全无人值守"模式，烟测也要点一下。
+- **Win11 的 `notepad.exe`/`calc.exe`/`mspaint.exe` 是商店版启动器壳**，复制到别处无法独立运行
+  （静默退出）——测试"自动拉起主程序"请用真正的独立 exe（如 `7zFM.exe`）。
 
 ## 输出位置与命名（固定标准，用户 2026-10-10 定）
 
@@ -99,6 +133,9 @@ powershell -ExecutionPolicy Bypass -File scripts\build_sfx.ps1 `
 - 需要自定义时显式传 `-Output`（优先级最高）。
 
 ## 提速与并行分工（用户反馈"流程比手工慢"后的优化，2026-10-10）
+
+**第一原则：默认用 `pack.ps1` 一键打包**（见上节）——agent 只需一次工具调用，不再十几次回合。
+只有需要定制（特殊安装逻辑、非常规布局）时才手动组装走 `build_sfx.ps1`。
 
 **构建本身提速**：
 - **压缩等级**：`-Level`（1–9，**默认 5**，原来是写死的 9——大包慢的主因）。
