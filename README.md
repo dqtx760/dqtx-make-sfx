@@ -15,6 +15,17 @@
 > 本仓库同时是一份 [Agent Skill](SKILL.md)（`SKILL.md`），可直接给 Claude Code / WorkBuddy 等
 > Agent 使用——Agent 会自动判断「软件安装」还是「配置文件覆盖」并选择对应模式。
 
+## 原理：构建期 vs 运行期
+
+<p align="center">
+  <img src="./assets/readme/principle.svg" width="100%" alt="make-sfx 原理：构建期用 7z.exe CLI 压缩并拼接成单文件 exe；运行期由 7zSD.sfx 桩自带解码器解压并执行，目标机不需要 7z.exe">
+</p>
+
+- **构建期（你的打包机）**：`build_sfx.ps1` 调用原生 `7z.exe` CLI（`7z a -t7z -m0=lzma2 …`）把源文件压成 `payload.7z`；随后脚本自己用 Win32 `UpdateResource` API 给 stub 盖图标，再把 `7zSD.sfx 桩 + config.txt + payload.7z` 三段**直接字节拼接**成单文件 `.exe`。这一步才需要装 7-Zip。
+- **运行期（用户机器）**：双击 `.exe`，真正运行的是打包进去的 **`7zSD.sfx` 桩**（来自 LZMA SDK，自带 LZMA 解码器）。它把尾部附着的 `.7z` 解压到 `%TEMP%`，按 `config.txt` 执行 `ExecuteFile`，退出后清理临时目录。**整个过程不依赖 7-Zip，用户机什么都不用装。**
+
+> 一句话：7z.exe 只在你打包那一下出现一次；交付出去的 exe 自带解码器，运行时不调用任何外部程序。
+
 ## 装好后是什么体验
 
 <p align="center">
@@ -91,7 +102,7 @@ dqtx-make-sfx/
 ├── SKILL.md                     # Agent Skill 清单（给 AI 看的完整操作手册）
 ├── assets/
 │   ├── banner-demo.png          # 横幅示例（裁边后）
-│   └── readme/                  # README 视觉素材（hero / workflow SVG 源文件）
+│   └── readme/                  # README 视觉素材（hero / workflow / principle SVG 源文件）
 ├── scripts/
 │   ├── build_sfx.ps1            # 主打包脚本（压缩→config→盖章图标→三段拼接）
 │   ├── wizard.ps1               # 现代扁平安装向导 UI（无边框标题栏+横幅+路径选择）
